@@ -7,7 +7,7 @@ Tensorflow implementation of NIPS 2017 paper [Pose Guided Person Image Generatio
 ![alt text](https://github.com/charliememory/Pose-Guided-Person-Image-Generation/blob/master/imgs/Paper-framework.svg)
 
 ## Dependencies
-- python 2.7
+- python 2.7 
 - tensorflow-gpu (1.4.1)
 - numpy (1.14.0)
 - Pillow (5.0.0)

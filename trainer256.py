@@ -2,11 +2,12 @@ from trainer import *
 from models256 import *
 from datasets import deepfashion
 
+
 class PG2_256(PG2):
     def __init__(self, config):
         self._common_init(config)
         self.keypoint_num = 18
-        self.D_arch = config.D_arch
+        self.D_arch = config.D_arch  # config.D_arch = DCGAN
 
         if ('deepfashion' in config.dataset.lower()) or ('df' in config.dataset.lower()):
             if config.is_train:
@@ -96,10 +97,12 @@ class PG2_256(PG2):
         pose_0 = sparse_ops.sparse_tensor_to_dense(pose_0, default_value=0, validate_indices=False)
         pose_1 = sparse_ops.sparse_tensor_to_dense(pose_1, default_value=0, validate_indices=False)
 
+        print("pose_0  :", pose_0.shape)
         image_raw_0 = tf.reshape(image_raw_0, [256, 256, 3])        
         image_raw_1 = tf.reshape(image_raw_1, [256, 256, 3]) 
         pose_0 = tf.cast(tf.reshape(pose_0, [256, 256, self.keypoint_num]), tf.float32)
         pose_1 = tf.cast(tf.reshape(pose_1, [256, 256, self.keypoint_num]), tf.float32)
+        print("pose_0:21:", pose_0.shape)
         mask_0 = tf.cast(tf.reshape(mask_0, [256, 256, 1]), tf.float32)
         mask_1 = tf.cast(tf.reshape(mask_1, [256, 256, 1]), tf.float32)
 

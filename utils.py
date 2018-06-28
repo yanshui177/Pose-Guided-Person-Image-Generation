@@ -8,6 +8,7 @@ import numpy as np
 from PIL import Image
 from datetime import datetime
 
+
 def prepare_dirs_and_logger(config):
     formatter = logging.Formatter("%(asctime)s:%(levelname)s::%(message)s")
     logger = logging.getLogger()
@@ -39,8 +40,10 @@ def prepare_dirs_and_logger(config):
         if not os.path.exists(path):
             os.makedirs(path)
 
+
 def get_time():
     return datetime.now().strftime("%m%d_%H%M%S")
+
 
 def save_config(config):
     param_path = os.path.join(config.model_dir, "params.json")
@@ -51,11 +54,12 @@ def save_config(config):
     with open(param_path, 'w') as fp:
         json.dump(config.__dict__, fp, indent=4, sort_keys=True)
 
+
 def rank(array):
     return len(array.shape)
 
-def make_grid(tensor, nrow=8, padding=2,
-              normalize=False, scale_each=False):
+
+def make_grid(tensor, nrow=8, padding=2, normalize=False, scale_each=False):
     """Code based on https://github.com/pytorch/vision/blob/master/torchvision/utils.py"""
     nmaps = tensor.shape[0]
     xmaps = min(nrow, nmaps)
@@ -74,19 +78,21 @@ def make_grid(tensor, nrow=8, padding=2,
             k = k + 1
     return grid
 
-def save_image(tensor, filename, nrow=8, padding=2,
-               normalize=False, scale_each=False):
-    ndarr = make_grid(tensor, nrow=nrow, padding=padding,
-                            normalize=normalize, scale_each=scale_each)
+
+def save_image(tensor, filename, nrow=8, padding=2, normalize=False, scale_each=False):
+    ndarr = make_grid(tensor, nrow=nrow, padding=padding, normalize=normalize, scale_each=scale_each)
     im = Image.fromarray(ndarr)
     im.save(filename)
 
-##################### Pose/Mask/Sparse #####################
+
+# #################### Pose/Mask/Sparse #################### #
 import scipy.io
 import scipy.stats
 import skimage.morphology
 from skimage.morphology import square, dilation, erosion
 from PIL import Image
+
+
 def _getPoseMask(peaks, height, width, radius=4, var=4, mode='Solid'):
     ## MSCOCO Pose part_str = [nose, neck, Rsho, Relb, Rwri, Lsho, Lelb, Lwri, Rhip, Rkne, Rank, Lhip, Lkne, Lank, Leye, Reye, Lear, Rear, pt19]
     # find connection in the specified sequence, center 29 is in the position 15
@@ -99,11 +105,10 @@ def _getPoseMask(peaks, height, width, radius=4, var=4, mode='Solid'):
     # limbSeq = [[3,4], [4,5], [6,7], [7,8], [9,10], \
     #            [10,11], [12,13], [13,14], [2,1], [1,15], [15,17], \
     #            [1,16], [16,18]] # 
-    limbSeq = [[2,3], [2,6], [3,4], [4,5], [6,7], [7,8], [2,9], [9,10], \
-                         [10,11], [2,12], [12,13], [13,14], [2,1], [1,15], [15,17], \
-                         [1,16], [16,18], [2,17], [2,18], [9,12], [12,6], [9,3], [17,18]] #
-    indices = []
-    values = []
+    limbSeq = [[2,3], [2,6], [3,4], [4,5], [6,7], [7,8], [2,9], [9,10],
+                         [10,11], [2,12], [12,13], [13,14], [2,1], [1,15], [15,17],
+                         [1,16], [16,18], [2,17], [2,18], [9,12], [12,6], [9,3], [17,18]]
+    indices, values = [], []
     for limb in limbSeq:
         p0 = peaks[limb[0] -1]
         p1 = peaks[limb[1] -1]
@@ -144,6 +149,8 @@ def _getPoseMask(peaks, height, width, radius=4, var=4, mode='Solid'):
 
 Ratio_0_4 = 1.0/scipy.stats.norm(0, 4).pdf(0)
 Gaussian_0_4 = scipy.stats.norm(0, 4)
+
+
 def _getSparseKeypoint(r, c, k, height, width, radius=4, var=4, mode='Solid'):
     r = int(r)
     c = int(c)
@@ -154,16 +161,17 @@ def _getSparseKeypoint(r, c, k, height, width, radius=4, var=4, mode='Solid'):
         for j in range(-radius, radius+1):
             distance = np.sqrt(float(i**2+j**2))
             if r+i>=0 and r+i<height and c+j>=0 and c+j<width:
-                if 'Solid'==mode and distance<=radius:
+                if 'Solid' == mode and distance <= radius:
                     indices.append([r+i, c+j, k])
                     values.append(1)
-                elif 'Gaussian'==mode and distance<=radius:
+                elif 'Gaussian' == mode and distance <= radius:
                     indices.append([r+i, c+j, k])
-                    if 4==var:
-                        values.append( Gaussian_0_4.pdf(distance) * Ratio_0_4  )
+                    if 4 == var:
+                        values.append(Gaussian_0_4.pdf(distance) * Ratio_0_4  )
                     else:
                         assert 'Only define Ratio_0_4  Gaussian_0_4 ...'
     return indices, values
+
 
 def _getSparsePose(peaks, height, width, channel, radius=4, var=4, mode='Solid'):
     indices = []
@@ -179,6 +187,7 @@ def _getSparsePose(peaks, height, width, channel, radius=4, var=4, mode='Solid')
     shape = [height, width, channel]
     return indices, values, shape
 
+
 def _oneDimSparsePose(indices, shape):
     ind_onedim = []
     for ind in indices:
@@ -188,6 +197,7 @@ def _oneDimSparsePose(indices, shape):
     shape = np.prod(shape)
     return ind_onedim, shape
 
+
 def _sparse2dense(indices, values, shape):
     dense = np.zeros(shape)
     for i in range(len(indices)):
@@ -196,6 +206,7 @@ def _sparse2dense(indices, values, shape):
         k = indices[i][2]
         dense[r,c,k] = values[i]
     return dense
+
 
 def _get_valid_peaks(all_peaks, subsets):
     try:
@@ -230,14 +241,17 @@ def _get_valid_peaks(all_peaks, subsets):
         # pdb.set_trace()
         return None
 
+
 import matplotlib.pyplot as plt 
 import scipy.misc
+
+
 def _visualizePose(pose, img):
     # pdb.set_trace()
-    if 3==len(pose.shape):
+    if 3 == len(pose.shape):
         pose = pose.max(axis=-1, keepdims=True)
         pose = np.tile(pose, (1,1,3))
-    elif 2==len(pose.shape):
+    elif 2 == len(pose.shape):
         pose = np.expand_dims(pose, -1)
         pose = np.tile(pose, (1,1,3))
 

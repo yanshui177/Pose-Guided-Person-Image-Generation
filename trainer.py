@@ -1,5 +1,8 @@
+# /usr/bin/env python
+# -*- coding: UTF-8 -*-
 from __future__ import print_function
 
+import matplotlib.pyplot as plt
 import os, pdb
 import StringIO
 import scipy.misc
@@ -49,8 +52,9 @@ def slerp(val, low, high):
     omega = np.arccos(np.clip(np.dot(low/np.linalg.norm(low), high/np.linalg.norm(high)), -1, 1))
     so = np.sin(omega)
     if so == 0:
-        return (1.0-val) * low + val * high # L'Hopital's rule/LERP
+        return (1.0-val) * low + val * high  # L'Hopital's rule/LERP
     return np.sin((1.0-val)*omega) / so * low + np.sin(val*omega) / so * high
+
 
 from datasets import market1501, dataset_utils
 import utils_wgan
@@ -59,11 +63,13 @@ from skimage.color import rgb2gray
 from PIL import Image
 from tensorflow.python.ops import sparse_ops
 
+
 class PG2(object):
     def _common_init(self, config):
+        # param
         self.config = config
         self.data_loader = None
-        self.dataset = config.dataset
+        self.dataset = config.dataset  # 'DF_train_data'
 
         self.beta1 = config.beta1
         self.beta2 = config.beta2
@@ -85,11 +91,12 @@ class PG2(object):
         self.conv_hidden_num = config.conv_hidden_num
         self.img_H, self.img_W = config.img_H, config.img_W
 
-        self.model_dir = config.model_dir
-        self.load_path = config.load_path
+        # data
+        self.model_dir = config.model_dir  # 'path_to_directory_of_model'
+        self.load_path = config.load_path  # ''
 
         self.use_gpu = config.use_gpu
-        self.data_format = config.data_format
+        self.data_format = config.data_format  # 'NCHW' 跟系统是不是用GPU有关系
 
         _, self.height, self.width, self.channel = self._get_conv_shape()
         self.repeat_num = int(np.log2(self.height)) - 2
@@ -107,7 +114,7 @@ class PG2(object):
         if self.is_train:
             self.num_threads = 4
             self.capacityCoff = 2
-        else: # during testing to keep the order of the input data
+        else:  # during testing to keep the order of the input data
             self.num_threads = 1
             self.capacityCoff = 1
 
@@ -123,6 +130,7 @@ class PG2(object):
             else:
                 self.dataset_obj = market1501.get_split('test', config.data_path)
 
+        # 获取图像数据
         if config.test_one_by_one:
             self.x = tf.placeholder(tf.float32, shape=(None, self.img_H, self.img_W, 3))
             self.x_target = tf.placeholder(tf.float32, shape=(None, self.img_H, self.img_W, 3))
@@ -131,30 +139,36 @@ class PG2(object):
             self.mask = tf.placeholder(tf.float32, shape=(None, self.img_H, self.img_W, 1))
             self.mask_target = tf.placeholder(tf.float32, shape=(None, self.img_H, self.img_W, 1))
         else:
-            self.x, self.x_target, self.pose, self.pose_target, self.mask, self.mask_target = self._load_batch_pair_pose(self.dataset_obj)
+            self.x, self.x_target, self.pose, self.pose_target, self.mask, self.mask_target = \
+                self._load_batch_pair_pose(self.dataset_obj)
+
+        print("trainer--__init__:pose")
+        print(self.pose)
 
     def init_net(self):
         self.build_model()
 
         if self.pretrained_path is not None:
-            var = tf.get_collection(tf.GraphKeys.VARIABLES, scope='Pose_AE')+tf.get_collection(tf.GraphKeys.VARIABLES, scope='UAEnoFC')
+            var = tf.get_collection(tf.GraphKeys.VARIABLES, scope='Pose_AE')+\
+                  tf.get_collection(tf.GraphKeys.VARIABLES, scope='UAEnoFC')
             self.saverPart = tf.train.Saver(var, max_to_keep=20)
-            
+
         self.saver = tf.train.Saver(max_to_keep=20)
         self.summary_writer = tf.summary.FileWriter(self.model_dir)
 
+        # https://blog.csdn.net/u012436149/article/details/53341372
+        # saver可以自动从checkpoint中读取数据，如果没有则自动初始化
         sv = tf.train.Supervisor(logdir=self.model_dir,
-                                is_chief=True,
-                                saver=None,
-                                summary_op=None,
-                                summary_writer=self.summary_writer,
-                                global_step=self.step,
-                                save_model_secs=0,
-                                ready_for_local_init_op=None)
+                                 is_chief=True,
+                                 saver=None,
+                                 summary_op=None,
+                                 summary_writer=self.summary_writer,
+                                 global_step=self.step,
+                                 save_model_secs=0,
+                                 ready_for_local_init_op=None)
 
         gpu_options = tf.GPUOptions(allow_growth=True)
-        sess_config = tf.ConfigProto(allow_soft_placement=True,
-                                    gpu_options=gpu_options)
+        sess_config = tf.ConfigProto(allow_soft_placement=True, gpu_options=gpu_options)
         self.sess = sv.prepare_or_wait_for_session(config=sess_config)
         # self.sess.run(tf.global_variables_initializer())
         if self.pretrained_path is not None:
@@ -163,6 +177,8 @@ class PG2(object):
         elif self.ckpt_path is not None:
             self.saver.restore(self.sess, self.ckpt_path)
             print('restored from ckpt_path:', self.ckpt_path)
+        else:
+            print('没有路径，从零开始初始化')
 
     def _get_conv_shape(self):
         shape = [self.batch_size, self.img_H, self.img_W, 3]
@@ -221,45 +237,32 @@ class PG2(object):
             return wgan_gp.DCGANDiscriminator
         raise Exception('You must choose an architecture!')
 
-    # def build_test_model(self):
-    #     G1, DiffMap, self.G_var1, self.G_var2  = GeneratorCNN_Pose_UAEAfterResidual_UAEnoFCAfter2Noise(
-    #             self.x, self.pose_target, 
-    #             self.channel, self.z_num, self.repeat_num, self.conv_hidden_num, self.data_format, activation_fn=tf.nn.relu, noise_dim=0, reuse=False)
-
-    #     G2 = G1 + DiffMap
-    #     self.G1 = denorm_img(G1, self.data_format)
-    #     self.G2 = denorm_img(G2, self.data_format)
-    #     self.G = self.G2
-    #     self.DiffMap = denorm_img(DiffMap, self.data_format)
-
-    #     self.wgan_gp = WGAN_GP(DATA_DIR='', MODE='dcgan', DIM=64, BATCH_SIZE=self.batch_size, ITERS=200000, LAMBDA=10, G_OUTPUT_DIM=128*64*3)
-    #     Dis = self._getDiscriminator(self.wgan_gp, arch=self.D_arch)
-
     def build_model(self):
-        G1, DiffMap, self.G_var1, self.G_var2  = GeneratorCNN_Pose_UAEAfterResidual_UAEnoFCAfter2Noise(
-                self.x, self.pose_target, 
-                self.channel, self.z_num, self.repeat_num, self.conv_hidden_num, self.data_format, activation_fn=tf.nn.relu, noise_dim=0, reuse=False)
+        G1, DiffMap, self.G_var1, self.G_var2 = GeneratorCNN_Pose_UAEAfterResidual_UAEnoFCAfter2Noise(
+                self.x, self.pose_target, self.channel, self.z_num, self.repeat_num, self.conv_hidden_num,
+                self.data_format, activation_fn=tf.nn.relu, noise_dim=0, reuse=False)
 
         G2 = G1 + DiffMap
         self.G1 = denorm_img(G1, self.data_format)
         self.G2 = denorm_img(G2, self.data_format)
         self.G = self.G2
         self.DiffMap = denorm_img(DiffMap, self.data_format)
-        self.wgan_gp = WGAN_GP(DATA_DIR='', MODE='dcgan', DIM=64, BATCH_SIZE=self.batch_size, ITERS=200000, LAMBDA=10, G_OUTPUT_DIM=128*64*3)
+        self.wgan_gp = WGAN_GP(DATA_DIR='', MODE='dcgan', DIM=64, BATCH_SIZE=self.batch_size,
+                               ITERS=200000, LAMBDA=10, G_OUTPUT_DIM=128*64*3)
         
         Dis = self._getDiscriminator(self.wgan_gp, arch=self.D_arch)
         triplet = tf.concat([self.x_target, self.x, G1, G2], 0)
 
-        ## WGAN-GP code uses NCHW
-        self.D_z = Dis(tf.transpose( triplet, [0,3,1,2] ), input_dim=3)
+        # # WGAN-GP code uses NCHW
+        self.D_z = Dis(tf.transpose(triplet, [0, 3, 1, 2]), input_dim=3)
         self.D_var = lib.params_with_name('Discriminator.')
 
         D_z_pos_x_target, D_z_neg_x, D_z_neg_g1, D_z_neg_g2 = tf.split(self.D_z, 4)
 
-        self.PoseMaskLoss1 = tf.reduce_mean(tf.abs(G1 - self.x_target) * (self.mask_target))
+        self.PoseMaskLoss1 = tf.reduce_mean(tf.abs(G1 - self.x_target) * self.mask_target)
         self.g_loss1 = tf.reduce_mean(tf.abs(G1-self.x_target)) + self.PoseMaskLoss1
-
-        self.g_loss2, self.d_loss, self.g2_g1_loss = self._gan_loss(self.wgan_gp, Dis, D_z_pos_x_target, D_z_neg_x, D_z_neg_g1, D_z_neg_g2, arch=self.D_arch)
+        self.g_loss2, self.d_loss, self.g2_g1_loss = self._gan_loss(self.wgan_gp, Dis, D_z_pos_x_target, D_z_neg_x,
+                                                                    D_z_neg_g1, D_z_neg_g2, arch=self.D_arch)
         self.PoseMaskLoss2 = tf.reduce_mean(tf.abs(G2 - self.x_target) * (self.mask_target))
         self.L1Loss2 = tf.reduce_mean(tf.abs(G2 - self.x_target)) + self.PoseMaskLoss2
         self.g_loss2 += self.L1Loss2 * 10
@@ -298,8 +301,20 @@ class PG2(object):
         return gen_cost, disc_cost, g2_g1_cost
 
     def train(self):
-        x_fixed, x_target_fixed, pose_fixed, pose_target_fixed, mask_fixed, mask_target_fixed = self.get_image_from_loader()
-        save_image(x_fixed, '{}/x_fixed.png'.format(self.model_dir))
+        print("训练")
+        x_fixed, x_target_fixed, pose_fixed, pose_target_fixed, mask_fixed, mask_target_fixed = \
+            self.get_image_from_loader()
+
+        # 以下是灰度图
+        # print("x_fixed:", x_fixed.shape)
+        # print("x_target_fixed:", x_target_fixed.shape)
+        # print("mask_fixed:", mask_fixed.shape)
+        # print("mask_target_fixed:", mask_target_fixed.shape)
+
+        # print("pose_fixed[0][40][40]:", np.array(pose_fixed[0][40][40]))
+        # print("pose_target_fixed:", pose_target_fixed.shape)
+
+        save_image(x_fixed, '{}/.png'.format(self.model_dir))
         save_image(x_target_fixed, '{}/x_target_fixed.png'.format(self.model_dir))
         save_image((np.amax(pose_fixed, axis=-1, keepdims=True)+1.0)*127.5, '{}/pose_fixed.png'.format(self.model_dir))
         save_image((np.amax(pose_target_fixed, axis=-1, keepdims=True)+1.0)*127.5, '{}/pose_target_fixed.png'.format(self.model_dir))
@@ -326,10 +341,8 @@ class PG2(object):
 
             fetch_dict = {}
             if step % self.log_step == self.log_step-1:
-                fetch_dict.update({
-                    "summary": self.summary_op
-                })
-                    # "k_t": self.k_t,
+                fetch_dict.update({"summary": self.summary_op})  # "k_t": self.k_t,
+
             result = self.sess.run(fetch_dict)
 
             if step % self.log_step == self.log_step-1:
@@ -352,6 +365,7 @@ class PG2(object):
                 self.saver.save(self.sess, os.path.join(self.model_dir, 'model.ckpt'), global_step=step)
 
     def test(self):
+        print("测试")
         test_result_dir = os.path.join(self.model_dir, 'test_result')
         test_result_dir_x = os.path.join(test_result_dir, 'x')
         test_result_dir_x_target = os.path.join(test_result_dir, 'x_target')
@@ -420,7 +434,8 @@ class PG2(object):
             # x_target_gray = rgb2gray((x_target_fixed[i,:]).clip(min=-1,max=1))
             G_gray = rgb2gray((G[i,:]).clip(min=0,max=255).astype(np.uint8))
             x_target_gray = rgb2gray(((x_target_fixed[i,:]+1)*127.5).clip(min=0,max=255).astype(np.uint8))
-            ssim_G_x_list.append(ssim(G_gray, x_target_gray, data_range=x_target_gray.max() - x_target_gray.min(), multichannel=False))
+            ssim_G_x_list.append(ssim(G_gray, x_target_gray, data_range=x_target_gray.max() - x_target_gray.min(),
+                                      multichannel=False))
         ssim_G_x_mean = np.mean(ssim_G_x_list)
         if path is None and save:
             path = os.path.join(root_path, '{}_G_ssim{}.png'.format(idx,ssim_G_x_mean))
@@ -428,17 +443,21 @@ class PG2(object):
             print("[*] Samples saved: {}".format(path))
         return G
 
+    # =============== 读取图像数据对 ===============
     def _load_batch_pair_pose(self, dataset):
         data_provider = slim.dataset_data_provider.DatasetDataProvider(dataset, common_queue_capacity=32, common_queue_min=8)
-        image_raw_0, image_raw_1, label, pose_0, pose_1, mask_0, mask_1  = data_provider.get([
+        image_raw_0, image_raw_1, label, pose_0, pose_1, mask_0, mask_1 = data_provider.get([
             'image_raw_0', 'image_raw_1', 'label', 'pose_sparse_r4_0', 'pose_sparse_r4_1', 'pose_mask_r4_0', 'pose_mask_r4_1'])
+        print("trainer－－_load_batch_pair_pose：")
+        print(pose_0)
+
         pose_0 = sparse_ops.sparse_tensor_to_dense(pose_0, default_value=0, validate_indices=False)
         pose_1 = sparse_ops.sparse_tensor_to_dense(pose_1, default_value=0, validate_indices=False)
 
         image_raw_0 = tf.reshape(image_raw_0, [128, 64, 3])        
         image_raw_1 = tf.reshape(image_raw_1, [128, 64, 3]) 
-        pose_0 = tf.cast(tf.reshape(pose_0, [128, 64, self.keypoint_num]), tf.float32)
-        pose_1 = tf.cast(tf.reshape(pose_1, [128, 64, self.keypoint_num]), tf.float32)
+        pose_0 = tf.cast(tf.reshape(pose_0, [128, 64, self.keypoint_num]), tf.float32)  # 数据类型转换
+        pose_1 = tf.cast(tf.reshape(pose_1, [128, 64, self.keypoint_num]), tf.float32)  #
         mask_0 = tf.cast(tf.reshape(mask_0, [128, 64, 1]), tf.float32)
         mask_1 = tf.cast(tf.reshape(mask_1, [128, 64, 1]), tf.float32)
 
@@ -451,8 +470,11 @@ class PG2(object):
         poses_1 = poses_1*2-1
         return images_0, images_1, poses_0, poses_1, masks_0, masks_1
 
+    # 生成图像和姿势
     def get_image_from_loader(self):
-        x, x_target, pose, pose_target, mask, mask_target = self.sess.run([self.x, self.x_target, self.pose, self.pose_target, self.mask, self.mask_target])
+        x, x_target, pose, pose_target, mask, mask_target = self.sess.run(
+            [self.x, self.x_target, self.pose, self.pose_target, self.mask, self.mask_target]
+        )
         x = utils_wgan.unprocess_image(x, 127.5, 127.5)
         x_target = utils_wgan.unprocess_image(x_target, 127.5, 127.5)
         mask = mask*255

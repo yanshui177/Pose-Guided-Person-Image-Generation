@@ -94,8 +94,8 @@ def LuNet(x, input_H, input_W, is_train_tensor, data_format='NHWC', activation_f
     return out, variables
 
 
-################################################################
-#######################       GAN       ########################
+# ############################################################## #
+# ######################       GAN       ####################### #
 def GeneratorCNN_Pose_UAEAfterResidual(x, pose_target, input_channel, z_num, repeat_num, hidden_num, data_format, activation_fn=tf.nn.elu, min_fea_map_H=8, noise_dim=0, reuse=False):
     with tf.variable_scope("G") as vs:
         if pose_target is not None:

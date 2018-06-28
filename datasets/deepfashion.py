@@ -47,6 +47,8 @@ _ITEMS_TO_DESCRIPTIONS = {
 
 
 from tensorflow.python.ops import parsing_ops
+
+
 def get_split(split_name, dataset_dir, data_name='DeepFashion', file_pattern=None, reader=None):
   """Gets a dataset tuple with instructions for reading DeepFashion.
 
@@ -75,10 +77,9 @@ def get_split(split_name, dataset_dir, data_name='DeepFashion', file_pattern=Non
   if reader is None:
     reader = tf.TFRecordReader
 
-
   keys_to_features = {
-     'image_raw_0' : tf.FixedLenFeature([], tf.string),
-     'image_raw_1' : tf.FixedLenFeature([], tf.string),
+     'image_raw_0': tf.FixedLenFeature([], tf.string),
+     'image_raw_1': tf.FixedLenFeature([], tf.string),
      'label': tf.FixedLenFeature([], tf.int64), # For FixedLenFeature, [] means scalar
      'id_0': tf.FixedLenFeature([], tf.int64),
      'id_1': tf.FixedLenFeature([], tf.int64),
@@ -94,10 +95,10 @@ def get_split(split_name, dataset_dir, data_name='DeepFashion', file_pattern=Non
      'pose_mask_r4_1': tf.FixedLenFeature([256*256*1], tf.int64),
      
      'shape': tf.FixedLenFeature([1], tf.int64),
-      'indices_r4_0': tf.VarLenFeature(dtype=tf.int64),
-      'values_r4_0': tf.VarLenFeature(dtype=tf.float32),
-      'indices_r4_1': tf.VarLenFeature(dtype=tf.int64),
-      'values_r4_1': tf.VarLenFeature(dtype=tf.float32),
+     'indices_r4_0': tf.VarLenFeature(dtype=tf.int64),
+     'values_r4_0': tf.VarLenFeature(dtype=tf.float32),
+     'indices_r4_1': tf.VarLenFeature(dtype=tf.int64),
+     'values_r4_1': tf.VarLenFeature(dtype=tf.float32),
      'pose_subs_0': tf.FixedLenFeature([20], tf.float32),
      'pose_subs_1': tf.FixedLenFeature([20], tf.float32),
   }
@@ -108,10 +109,10 @@ def get_split(split_name, dataset_dir, data_name='DeepFashion', file_pattern=Non
       'label': slim.tfexample_decoder.Tensor('label'),
       'id_0': slim.tfexample_decoder.Tensor('id_0'),
       'id_1': slim.tfexample_decoder.Tensor('id_1'),
-      'pose_peaks_0': slim.tfexample_decoder.Tensor('pose_peaks_0',shape=[16*16*18]),
-      'pose_peaks_1': slim.tfexample_decoder.Tensor('pose_peaks_1',shape=[16*16*18]),
-      'pose_mask_r4_0': slim.tfexample_decoder.Tensor('pose_mask_r4_0',shape=[256*256*1]),
-      'pose_mask_r4_1': slim.tfexample_decoder.Tensor('pose_mask_r4_1',shape=[256*256*1]),
+      'pose_peaks_0': slim.tfexample_decoder.Tensor('pose_peaks_0', shape=[16*16*18]),
+      'pose_peaks_1': slim.tfexample_decoder.Tensor('pose_peaks_1', shape=[16*16*18]),
+      'pose_mask_r4_0': slim.tfexample_decoder.Tensor('pose_mask_r4_0', shape=[256*256*1]),
+      'pose_mask_r4_1': slim.tfexample_decoder.Tensor('pose_mask_r4_1', shape=[256*256*1]),
 
       'pose_sparse_r4_0': slim.tfexample_decoder.SparseTensor(indices_key='indices_r4_0', values_key='values_r4_0', shape_key='shape', densify=False),
       'pose_sparse_r4_1': slim.tfexample_decoder.SparseTensor(indices_key='indices_r4_1', values_key='values_r4_1', shape_key='shape', densify=False),
@@ -120,15 +121,14 @@ def get_split(split_name, dataset_dir, data_name='DeepFashion', file_pattern=Non
       'pose_subs_1': slim.tfexample_decoder.Tensor('pose_subs_1',shape=[20]),
   }
 
-  decoder = slim.tfexample_decoder.TFExampleDecoder(
-      keys_to_features, items_to_handlers)
+  decoder = slim.tfexample_decoder.TFExampleDecoder(keys_to_features, items_to_handlers)
 
   labels_to_names = None
   if dataset_utils.has_labels(dataset_dir):
     labels_to_names = dataset_utils.read_label_file(dataset_dir)
 
-  print('load pn_pairs_num ......')
   fpath = os.path.join(dataset_dir, 'pn_pairs_num_'+split_name+'.p')
+  print('load pn_pairs_num ......:', fpath)
   with open(fpath,'r') as f:
     pn_pairs_num = pickle.load(f)
 
